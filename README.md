@@ -27,6 +27,5 @@ uv run python main.py
 
 ## Deployment
 
-Deployed to Railway (Traba workspace) with a cron schedule (`0 20 * * 5` = Fridays 8pm UTC / 4pm ET). Config lives in `railway.json`.
+Deployed to Railway with a cron schedule.
 
-Build uses nixpacks with uv (`nixpacks.toml`).
