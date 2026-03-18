@@ -4,6 +4,10 @@ Weekly Slack bot that posts Austin Carter's PCT hiking progress to `#austin-trac
 
 Scrapes [hike.austinscarter.com](https://hike.austinscarter.com) (Next.js SSR — no public API) and posts miles hiked, day on trail, pace, elevation gain, recent trail updates, and a Mapbox trail progress map.
 
+## Slack App Setup
+
+See [`slack/README.md`](slack/README.md) for creating the Slack app, installing it, and getting the bot token.
+
 ## Setup
 
 ```sh
