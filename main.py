@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Austin PCT Tracker — weekly Slack update service.
+Austin PCT Tracker — daily Slack update service.
 
-Scrapes hike.austinscarter.com (Next.js SSR, no public API) and posts a
-week-in-review message to #austin-tracker. Stateless — no persistence needed
-since the website always has current data.
+Scrapes hike.austinscarter.com (Next.js SSR, no public API) and posts to
+#austin-tracker. Runs daily at noon ET — posts whenever there are new trail
+updates (created in the last 25 hours), and always on Fridays regardless.
+Stateless — no persistence needed since the website always has current data.
 
 Environment variables:
   SLACK_BOT_TOKEN   Required. xoxb-... bot token with chat:write scope.
@@ -21,6 +22,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 # ---------------------------------------------------------------------------
 # Config
@@ -165,13 +168,50 @@ def extract_data(html: str) -> dict:
 # Formatting
 # ---------------------------------------------------------------------------
 
-def format_message(data: dict) -> str:
+PACIFIC = ZoneInfo("America/Los_Angeles")
+
+
+def format_timestamp(iso_str: str) -> str:
+    """Format '2026-03-20T01:45:31.457625+00:00' as 'March 20, 2026 at 1:45 AM'."""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        month = dt.strftime("%B")
+        hour = dt.hour % 12 or 12
+        ampm = "AM" if dt.hour < 12 else "PM"
+        return f"{month} {dt.day}, {dt.year} at {hour}:{dt.minute:02d} {ampm}"
+    except (ValueError, TypeError):
+        return ""
+
+
+def fetch_post_body(post_id: str) -> str | None:
+    """Fetch the body text for a trail update from its individual page."""
+    url = f"{TRACKER_URL}post/{post_id}"
+    log.info(f"Fetching post body: {post_id}")
+    try:
+        html = fetch_url(url).decode("utf-8")
+    except SystemExit:
+        log.warning(f"Failed to fetch post {post_id}, skipping body")
+        return None
+    # Body text lives in a standalone flight payload chunk — the longest plain
+    # text blob that isn't React component markup.
+    chunks = re.findall(r'__next_f\.push\(\[1,"(.*?)"\]\)', html, re.DOTALL)
+    best = ""
+    for chunk in chunks:
+        text = chunk.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
+        # Skip chunks that are React/JS code
+        if re.match(r'^\d+:', text) or text.startswith('[') or '["$"' in text[:50]:
+            continue
+        if len(text) > len(best):
+            best = text
+    return best.strip() if len(best) > 50 else None
+
+
+def format_stats(data: dict) -> str:
     miles = data.get("current_mile", 0)
     day = data.get("day", "?")
     pct = data.get("pct_complete", 0)
     pace = data.get("pace_mi_per_day", 0)
     elev = data.get("elevation_gain_display", "?")
-    posts = data.get("posts", [])
 
     lines = [
         ":hikege: *Austin's PCT Week in Review*",
@@ -180,23 +220,20 @@ def format_message(data: dict) -> str:
         f"*Day on trail:* Day {day}",
         f"*Avg pace:* {pace} mi/day",
         f"*Elevation gain:* {elev}",
+        "",
+        f"<{TRACKER_URL}|Follow along on his tracker>",
     ]
-
-    # Posts schema: id, title, trail_mile, photo_url, created_at
-    if posts:
-        lines += ["", f"*Trail updates ({len(posts)}):*"]
-        for post in posts[-3:]:
-            title = post.get("title", "Update")
-            trail_mile = post.get("trail_mile")
-            post_id = post.get("id")
-            mile_str = f" _(mile {int(float(trail_mile))})_" if trail_mile else ""
-            link = f"<{TRACKER_URL}post/{post_id}|{title}>" if post_id else title
-            lines.append(f"  • {link}{mile_str}")
-    else:
-        lines += ["", "No trail updates yet."]
-
-    lines += ["", f"<{TRACKER_URL}|Follow along on his tracker>"]
     return "\n".join(lines)
+
+
+def format_fallback(data: dict) -> str:
+    """Plain-text fallback for notifications and non-block clients."""
+    stats = format_stats(data)
+    posts = data.get("posts", [])
+    if posts:
+        titles = [p.get("title", "Update") for p in posts[-3:]]
+        stats += "\n\nTrail updates: " + " | ".join(titles)
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -271,14 +308,70 @@ def build_map_url(lat: float, lng: float, current_mile: float, mapbox_token: str
 # Slack
 # ---------------------------------------------------------------------------
 
-def build_blocks(text: str, map_url: str | None = None) -> list:
-    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+def build_blocks(stats_text: str, posts: list | None = None, map_url: str | None = None) -> list:
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": stats_text}}]
+
+    # Map comes right after stats
     if map_url:
         blocks.append({
             "type": "image",
             "image_url": map_url,
             "alt_text": "Austin's current location on the PCT",
         })
+
+    # Trail updates — full post with blockquoted body and photo
+    for post in (posts or [])[-3:]:
+        post_id = post.get("id")
+        title = post.get("title", "Update")
+        trail_mile = post.get("trail_mile")
+        created = post.get("created_at", "")
+        body = post.get("body", "")
+        photo_url = post.get("photo_url")
+
+        blocks.append({"type": "divider"})
+
+        # Header linking to the post
+        post_url = f"{TRACKER_URL}post/{post_id}" if post_id else TRACKER_URL
+        meta_parts = []
+        if trail_mile:
+            meta_parts.append(f"Mile {round(float(trail_mile))}")
+        date_str = format_timestamp(created)
+        if date_str:
+            meta_parts.append(date_str)
+        header = f"*<{post_url}|{title}>*"
+        if meta_parts:
+            header += f"\n_{' · '.join(meta_parts)}_"
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": header}})
+
+        # Photo before body text
+        if photo_url:
+            blocks.append({
+                "type": "image",
+                "image_url": photo_url,
+                "alt_text": title,
+            })
+
+        # Blockquoted body
+        if body and not body.startswith("$"):
+            # Slack mrkdwn uses *text* for bold — convert markdown *text* to _text_ for italics
+            body = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'_\1_', body)
+            quoted_lines = []
+            for line in body.split("\n"):
+                quoted_lines.append(f"> {line}" if line.strip() else ">")
+            quoted = "\n".join(quoted_lines)
+            # Slack section text limit is 3000 chars — split across blocks if needed
+            while quoted:
+                chunk = quoted[:3000]
+                if len(quoted) > 3000:
+                    # Split at a line boundary
+                    last_nl = chunk.rfind("\n")
+                    if last_nl > 0:
+                        chunk = quoted[:last_nl]
+                    quoted = quoted[len(chunk):].lstrip("\n")
+                else:
+                    quoted = ""
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": chunk}})
+
     return blocks
 
 
@@ -301,7 +394,14 @@ def slack_api(endpoint: str, payload: dict, token: str) -> dict:
 
 
 def post_to_slack(text: str, blocks: list, token: str, channel: str):
-    body = slack_api("chat.postMessage", {"channel": channel, "text": text, "blocks": blocks}, token)
+    payload = {
+        "channel": channel,
+        "text": text,
+        "blocks": blocks,
+        "unfurl_links": False,
+        "unfurl_media": False,
+    }
+    body = slack_api("chat.postMessage", payload, token)
     log.info(f"Posted to Slack channel {channel} (ts={body.get('ts')})")
 
 
@@ -309,21 +409,55 @@ def post_to_slack(text: str, blocks: list, token: str, channel: str):
 # Main
 # ---------------------------------------------------------------------------
 
+def has_recent_posts(posts: list, hours: int = 25) -> bool:
+    """Check if any posts were created within the last N hours."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    for post in posts:
+        created = post.get("created_at", "")
+        if not created:
+            continue
+        try:
+            dt = datetime.fromisoformat(created)
+            if dt >= cutoff:
+                return True
+        except (ValueError, TypeError):
+            continue
+    return False
+
+
 def main():
     config = get_config()
     log.info("Starting Austin PCT tracker update")
 
     data = extract_data(fetch_url(TRACKER_URL).decode("utf-8"))
-    log.info(f"Parsed: mile={data.get('current_mile')}, day={data.get('day')}, posts={len(data.get('posts', []))}")
+    posts = data.get("posts", [])
+    log.info(f"Parsed: mile={data.get('current_mile')}, day={data.get('day')}, posts={len(posts)}")
 
-    message = format_message(data)
+    now_pt = datetime.now(PACIFIC)
+    is_friday = now_pt.weekday() == 4
+
+    if not is_friday and not has_recent_posts(posts):
+        log.info("No new trail updates and not Friday — skipping post")
+        return
+
+    # Fetch full body text for recent posts
+    for post in posts[-3:]:
+        post_id = post.get("id")
+        body = post.get("body", "")
+        if post_id and (not body or body.startswith("$")):
+            fetched = fetch_post_body(post_id)
+            if fetched:
+                post["body"] = fetched
+
+    stats_text = format_stats(data)
+    fallback = format_fallback(data)
 
     map_url = None
     if data.get("lat") and data.get("lng") and config["mapbox_token"]:
         map_url = build_map_url(data["lat"], data["lng"], data.get("current_mile", 0), config["mapbox_token"])
 
-    blocks = build_blocks(message, map_url)
-    post_to_slack(message, blocks, config["token"], config["channel"])
+    blocks = build_blocks(stats_text, posts=posts, map_url=map_url)
+    post_to_slack(fallback, blocks, config["token"], config["channel"])
 
     log.info("Done")
 
