@@ -1,6 +1,6 @@
 # Austin PCT Tracker
 
-Weekly Slack bot that posts Austin Carter's PCT hiking progress to `#austin-tracker` every Friday at 4pm ET.
+Daily Slack bot that posts Austin Carter's PCT hiking progress to `#austin-tracker`. Runs daily at 11:30am ET — posts whenever there are new trail updates, and always on Fridays.
 
 Scrapes [hike.austinscarter.com](https://hike.austinscarter.com) (Next.js SSR — no public API) and posts miles hiked, day on trail, pace, elevation gain, recent trail updates, and a Mapbox trail progress map.
 
@@ -31,5 +31,7 @@ uv run python main.py
 
 ## Deployment
 
-Deployed to Railway with a cron schedule.
+Deployed to Railway with a daily cron schedule (`30 15 * * *` UTC = 11:30am ET).
+
+The cron schedule is defined in `railway.json` and syncs to the Railway dashboard on deploy. If the cron stops firing, check that the schedule still appears in the dashboard (Service Settings > Cron Schedule) — Railway's config-as-code cron sync has been flaky historically.
 
