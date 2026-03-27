@@ -5,3 +5,8 @@ description = "Weekly PCT progress bot for Austin's hike"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
