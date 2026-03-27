@@ -4,14 +4,14 @@ import json
 import logging
 import urllib.parse
 
-from scraper import fetch_url
+from src.scraper import fetch_url
 
 CENTERLINE_URL = "https://hike.austinscarter.com/data/pct-centerline.geojson"
 
 log = logging.getLogger(__name__)
 
 
-def fetch_centerline() -> list:
+def fetch_centerline() -> list[list[float]]:
     """Fetch PCT centerline as [[lng, lat], ...] directly from the tracker site."""
     log.info("Fetching PCT centerline...")
     raw = fetch_url(CENTERLINE_URL)
@@ -23,7 +23,7 @@ def fetch_centerline() -> list:
     return coords
 
 
-def sample_coords(coords: list, n: int) -> list:
+def sample_coords(coords: list[list[float]], n: int) -> list[list[float]]:
     """Evenly sample up to n coordinates, rounded to 4 decimal places."""
     if len(coords) <= n:
         return [[round(c[0], 4), round(c[1], 4)] for c in coords]
@@ -42,7 +42,7 @@ def build_map_url(lat: float, lng: float, current_mile: float, mapbox_token: str
     completed_budget = max(15, int(80 * len(completed_raw) / total))
     remaining_budget = 80 - completed_budget
 
-    def make_url(c, r):
+    def make_url(c: list[list[float]], r: list[list[float]]) -> str:
         geojson_str = json.dumps({
             "type": "FeatureCollection",
             "features": [

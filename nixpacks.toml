@@ -3,6 +3,3 @@ nixPkgs = ["uv"]
 
 [phases.install]
 cmds = ["uv sync --frozen"]
-
-[start]
-cmd = "uv run python main.py"

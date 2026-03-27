@@ -1,5 +1,6 @@
 data/
 .env
+.python-version
 __pycache__/
 .venv/
 .pytest_cache/

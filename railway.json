@@ -5,6 +5,6 @@
   },
   "deploy": {
     "cronSchedule": "30 15 * * *",
-    "startCommand": "python3 main.py"
+    "startCommand": "uv run python -m src.main"
   }
 }

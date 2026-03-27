@@ -1,8 +1,8 @@
-"""Tests for posting decision logic in main.py."""
+"""Tests for posting decision logic in src/main.py."""
 
 from datetime import datetime, timedelta, timezone
 
-from main import PostDecision, decide_post, has_recent_posts
+from src.main import decide_post, has_recent_posts
 
 # Wednesday 2026-03-25 at noon UTC
 WED_NOON = datetime(2026, 3, 25, 12, 0, tzinfo=timezone.utc)

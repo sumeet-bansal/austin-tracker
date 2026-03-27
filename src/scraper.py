@@ -8,6 +8,8 @@ import time
 import urllib.error
 import urllib.request
 
+from src.types import Post, TrackerData
+
 MAX_FETCH_RETRIES = 3
 FETCH_RETRY_DELAY = 5  # seconds between retries
 
@@ -29,7 +31,7 @@ def fetch_url(url: str) -> bytes:
     sys.exit(1)
 
 
-def extract_data(html: str) -> dict:
+def extract_data(html: str) -> TrackerData:
     """
     Extract stats from the React flight JSON and rendered HTML.
 
@@ -37,8 +39,8 @@ def extract_data(html: str) -> dict:
     Inside that JS string, double quotes are escaped as \\", so patterns use \\\\?".
     Rendered HTML stats (the visible divs) are parsed separately — no escaping there.
     """
-    data: dict = {}
-    warnings = []
+    data: TrackerData = {}
+    warnings: list[str] = []
 
     # --- React flight payload (escaped JSON) ---
 

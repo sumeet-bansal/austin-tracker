@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+from src.types import Post, TrackerData
+
 
 def format_timestamp(iso_str: str) -> str:
     """Format '2026-03-20T01:45:31.457625+00:00' as 'March 20, 2026 at 1:45 AM'."""
@@ -15,7 +17,7 @@ def format_timestamp(iso_str: str) -> str:
         return ""
 
 
-def format_stats(data: dict, tracker_url: str) -> str:
+def format_stats(data: TrackerData, tracker_url: str) -> str:
     miles = data.get("current_mile", 0)
     day = data.get("day", "?")
     pct = data.get("pct_complete", 0)
@@ -35,10 +37,10 @@ def format_stats(data: dict, tracker_url: str) -> str:
     return "\n".join(lines)
 
 
-def format_fallback(data: dict, tracker_url: str) -> str:
+def format_fallback(data: TrackerData, tracker_url: str) -> str:
     """Plain-text fallback for notifications and non-block clients."""
     stats = format_stats(data, tracker_url)
-    posts = data.get("posts", [])
+    posts: list[Post] = data.get("posts", [])
     if posts:
         titles = [p.get("title", "Update") for p in posts[-3:]]
         stats += "\n\nTrail updates: " + " | ".join(titles)

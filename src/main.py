@@ -17,14 +17,14 @@ Environment variables:
 import logging
 import os
 import sys
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from formatter import format_fallback, format_stats
-from map import build_map_url
-from scraper import extract_data, fetch_post_body, fetch_url
-from slack import build_blocks, post_to_slack
+from src.formatter import format_fallback, format_stats
+from src.map import build_map_url
+from src.scraper import extract_data, fetch_post_body, fetch_url
+from src.slack import build_blocks, post_to_slack
+from src.types import Config, Post, PostDecision
 
 TRACKER_URL = "https://hike.austinscarter.com/"
 PACIFIC = ZoneInfo("America/Los_Angeles")
@@ -38,7 +38,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def get_config() -> dict:
+def get_config() -> Config:
     token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
     channel = os.environ.get("SLACK_CHANNEL_ID", "").strip()
     mapbox_token = os.environ.get("MAPBOX_TOKEN", "").strip()
@@ -50,10 +50,10 @@ def get_config() -> dict:
         log.error("SLACK_CHANNEL_ID is not set")
         sys.exit(1)
 
-    return {"token": token, "channel": channel, "mapbox_token": mapbox_token}
+    return Config(token=token, channel=channel, mapbox_token=mapbox_token)
 
 
-def has_recent_posts(posts: list, now: datetime, hours: int = 25) -> bool:
+def has_recent_posts(posts: list[Post], now: datetime, hours: int = 25) -> bool:
     """Check if any posts were created within the last N hours."""
     cutoff = now - timedelta(hours=hours)
     for post in posts:
@@ -69,13 +69,7 @@ def has_recent_posts(posts: list, now: datetime, hours: int = 25) -> bool:
     return False
 
 
-@dataclass
-class PostDecision:
-    should_post: bool
-    include_posts: list
-
-
-def decide_post(posts: list, now: datetime) -> PostDecision:
+def decide_post(posts: list[Post], now: datetime) -> PostDecision:
     """Determine whether to post and what to include.
 
     Rules:
@@ -97,7 +91,7 @@ def main():
     log.info("Starting Austin PCT tracker update")
 
     data = extract_data(fetch_url(TRACKER_URL).decode("utf-8"))
-    posts = data.get("posts", [])
+    posts: list[Post] = data.get("posts", [])
     log.info(f"Parsed: mile={data.get('current_mile')}, day={data.get('day')}, posts={len(posts)}")
 
     decision = decide_post(posts, datetime.now(timezone.utc))
@@ -119,11 +113,11 @@ def main():
     fallback = format_fallback(data, TRACKER_URL)
 
     map_url = None
-    if data.get("lat") and data.get("lng") and config["mapbox_token"]:
-        map_url = build_map_url(data["lat"], data["lng"], data.get("current_mile", 0), config["mapbox_token"])
+    if data.get("lat") and data.get("lng") and config.mapbox_token:
+        map_url = build_map_url(data["lat"], data["lng"], data.get("current_mile", 0), config.mapbox_token)
 
     blocks = build_blocks(stats_text, TRACKER_URL, posts=decision.include_posts, map_url=map_url)
-    post_to_slack(fallback, blocks, config["token"], config["channel"])
+    post_to_slack(fallback, blocks, config.token, config.channel)
 
     log.info("Done")
 

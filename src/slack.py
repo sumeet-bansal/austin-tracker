@@ -7,13 +7,19 @@ import sys
 import urllib.error
 import urllib.request
 
-from formatter import format_timestamp
+from src.formatter import format_timestamp
+from src.types import Post
 
 log = logging.getLogger(__name__)
 
 
-def build_blocks(stats_text: str, tracker_url: str, posts: list | None = None, map_url: str | None = None) -> list:
-    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": stats_text}}]
+def build_blocks(
+    stats_text: str,
+    tracker_url: str,
+    posts: list[Post] | None = None,
+    map_url: str | None = None,
+) -> list[dict]:
+    blocks: list[dict] = [{"type": "section", "text": {"type": "mrkdwn", "text": stats_text}}]
 
     # Map comes right after stats
     if map_url:
@@ -36,7 +42,7 @@ def build_blocks(stats_text: str, tracker_url: str, posts: list | None = None, m
 
         # Header linking to the post
         post_url = f"{tracker_url}post/{post_id}" if post_id else tracker_url
-        meta_parts = []
+        meta_parts: list[str] = []
         if trail_mile:
             meta_parts.append(f"Mile {round(float(trail_mile))}")
         date_str = format_timestamp(created)
@@ -59,7 +65,7 @@ def build_blocks(stats_text: str, tracker_url: str, posts: list | None = None, m
         if body and not body.startswith("$"):
             # Slack mrkdwn uses *text* for bold — convert markdown *text* to _text_ for italics
             body = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'_\1_', body)
-            quoted_lines = []
+            quoted_lines: list[str] = []
             for line in body.split("\n"):
                 quoted_lines.append(f"> {line}" if line.strip() else ">")
             quoted = "\n".join(quoted_lines)
@@ -97,7 +103,7 @@ def slack_api(endpoint: str, payload: dict, token: str) -> dict:
     return body
 
 
-def post_to_slack(text: str, blocks: list, token: str, channel: str):
+def post_to_slack(text: str, blocks: list[dict], token: str, channel: str) -> None:
     payload = {
         "channel": channel,
         "text": text,
