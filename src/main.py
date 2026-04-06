@@ -3,10 +3,11 @@
 Austin PCT Tracker — daily Slack update service.
 
 Scrapes hike.austinscarter.com (Next.js SSR, no public API) and posts to
-#austin-tracker. Runs daily at noon ET — posts whenever there are new trail
-updates (created in the last 25 hours). On Fridays, always posts a stats
-summary (with map), but only includes trail updates if they're recent.
-Stateless — no persistence needed since the website always has current data.
+#austin-tracker. Runs daily — posts whenever there are new trail updates
+(created in the last 25 hours). On Fridays, always posts a stats summary
+(with map) even if there are no new trail updates. Only includes trail
+updates that are actually recent. Stateless — no persistence needed since
+the website always has current data.
 
 Environment variables:
   SLACK_BOT_TOKEN   Required. xoxb-... bot token with chat:write scope.
@@ -53,9 +54,10 @@ def get_config() -> Config:
     return Config(token=token, channel=channel, mapbox_token=mapbox_token)
 
 
-def has_recent_posts(posts: list[Post], now: datetime, hours: int = 25) -> bool:
-    """Check if any posts were created within the last N hours."""
+def recent_posts(posts: list[Post], now: datetime, hours: int = 25) -> list[Post]:
+    """Return only posts created within the last N hours."""
     cutoff = now - timedelta(hours=hours)
+    result = []
     for post in posts:
         created = post.get("created_at", "")
         if not created:
@@ -63,10 +65,10 @@ def has_recent_posts(posts: list[Post], now: datetime, hours: int = 25) -> bool:
         try:
             dt = datetime.fromisoformat(created)
             if dt >= cutoff:
-                return True
+                result.append(post)
         except (ValueError, TypeError):
             continue
-    return False
+    return result
 
 
 def decide_post(posts: list[Post], now: datetime) -> PostDecision:
@@ -78,12 +80,12 @@ def decide_post(posts: list[Post], now: datetime) -> PostDecision:
     - Not Friday, no recent update → skip
     """
     is_friday = now.astimezone(PACIFIC).weekday() == 4
-    recent = has_recent_posts(posts, now)
+    recent = recent_posts(posts, now)
 
     if not is_friday and not recent:
         return PostDecision(should_post=False, include_posts=[])
 
-    return PostDecision(should_post=True, include_posts=posts if recent else [])
+    return PostDecision(should_post=True, include_posts=recent if recent else [])
 
 
 def main():
@@ -101,7 +103,7 @@ def main():
         return
 
     # Fetch full body text for recent posts
-    for post in decision.include_posts[-3:]:
+    for post in decision.include_posts[:3]:
         post_id = post.get("id")
         body = post.get("body", "")
         if post_id and (not body or body.startswith("$")):
@@ -110,7 +112,7 @@ def main():
                 post["body"] = fetched
 
     stats_text = format_stats(data, TRACKER_URL)
-    fallback = format_fallback(data, TRACKER_URL)
+    fallback = format_fallback(data, TRACKER_URL, recent=decision.include_posts)
 
     map_url = None
     if data.get("lat") and data.get("lng") and config.mapbox_token:

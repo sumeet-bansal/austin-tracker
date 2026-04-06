@@ -128,7 +128,7 @@ def fetch_post_body(post_id: str, tracker_url: str) -> str | None:
     chunks = re.findall(r'__next_f\.push\(\[1,"(.*?)"\]\)', html, re.DOTALL)
     best = ""
     for chunk in chunks:
-        text = chunk.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
+        text = chunk.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\').replace('\\u003e', '>').replace('\\u003c', '<')
         # Skip chunks that are React/JS code
         if re.match(r'^\d+:', text) or text.startswith('[') or '["$"' in text[:50]:
             continue

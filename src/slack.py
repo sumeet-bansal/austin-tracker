@@ -30,7 +30,7 @@ def build_blocks(
         })
 
     # Trail updates — full post with blockquoted body and photo
-    for post in (posts or [])[-3:]:
+    for post in (posts or [])[:3]:
         post_id = post.get("id")
         title = post.get("title", "Update")
         trail_mile = post.get("trail_mile")
@@ -65,6 +65,8 @@ def build_blocks(
         if body and not body.startswith("$"):
             # Slack mrkdwn uses *text* for bold — convert markdown *text* to _text_ for italics
             body = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'_\1_', body)
+            # Convert markdown headers to Slack bold
+            body = re.sub(r'^#{1,6}\s*(.+)$', r'*\1*', body, flags=re.MULTILINE)
             quoted_lines: list[str] = []
             for line in body.split("\n"):
                 quoted_lines.append(f"> {line}" if line.strip() else ">")

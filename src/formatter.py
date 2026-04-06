@@ -37,11 +37,11 @@ def format_stats(data: TrackerData, tracker_url: str) -> str:
     return "\n".join(lines)
 
 
-def format_fallback(data: TrackerData, tracker_url: str) -> str:
+def format_fallback(data: TrackerData, tracker_url: str, recent: list[Post] | None = None) -> str:
     """Plain-text fallback for notifications and non-block clients."""
     stats = format_stats(data, tracker_url)
-    posts: list[Post] = data.get("posts", [])
+    posts = recent if recent is not None else data.get("posts", [])
     if posts:
-        titles = [p.get("title", "Update") for p in posts[-3:]]
+        titles = [p.get("title", "Update") for p in posts[:3]]
         stats += "\n\nTrail updates: " + " | ".join(titles)
     return stats
