@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+echo "Running pre-commit checks..."
+
+echo "  Formatting..."
+uv run ruff format --check src/ tests/
+
+echo "  Linting..."
+uv run ruff check src/ tests/
+
+echo "  Type checking..."
+uv run ty check src/
+
+echo "Pre-commit checks passed."

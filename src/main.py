@@ -18,7 +18,7 @@ Environment variables:
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from src.formatter import format_fallback, format_stats
@@ -96,7 +96,7 @@ def main():
     posts: list[Post] = data.get("posts", [])
     log.info(f"Parsed: mile={data.get('current_mile')}, day={data.get('day')}, posts={len(posts)}")
 
-    decision = decide_post(posts, datetime.now(timezone.utc))
+    decision = decide_post(posts, datetime.now(UTC))
 
     if not decision.should_post:
         log.info("No new trail updates and not Friday — skipping post")

@@ -34,21 +34,16 @@ def _flight_html(
             f'"])</script>'
         )
     rendered = (
-        f'<div>Day {day}</div>'
+        f"<div>Day {day}</div>"
         f'<div>{pace}</div><div class="stat-label">mi/day avg</div>'
         f'<div>{elev}</div><div class="stat-label">elevation gain</div>'
         f'<div>{pct}%</div><div class="stat-label">complete</div>'
     )
     # Make the rendered stats regex-matchable
-    rendered = rendered.replace(
-        f"<div>{pace}</div><div",
-        f"<div>{pace}</div>\n<div"
-    ).replace(
-        f"<div>{elev}</div><div",
-        f"<div>{elev}</div>\n<div"
-    ).replace(
-        f"<div>{pct}%</div><div",
-        f"<div>{pct}%</div>\n<div"
+    rendered = (
+        rendered.replace(f"<div>{pace}</div><div", f"<div>{pace}</div>\n<div")
+        .replace(f"<div>{elev}</div><div", f"<div>{elev}</div>\n<div")
+        .replace(f"<div>{pct}%</div><div", f"<div>{pct}%</div>\n<div")
     )
     return flight + rendered
 

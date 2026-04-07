@@ -23,11 +23,13 @@ def build_blocks(
 
     # Map comes right after stats
     if map_url:
-        blocks.append({
-            "type": "image",
-            "image_url": map_url,
-            "alt_text": "Austin's current location on the PCT",
-        })
+        blocks.append(
+            {
+                "type": "image",
+                "image_url": map_url,
+                "alt_text": "Austin's current location on the PCT",
+            }
+        )
 
     # Trail updates — full post with blockquoted body and photo
     for post in (posts or [])[:3]:
@@ -55,18 +57,20 @@ def build_blocks(
 
         # Photo before body text
         if photo_url:
-            blocks.append({
-                "type": "image",
-                "image_url": photo_url,
-                "alt_text": title,
-            })
+            blocks.append(
+                {
+                    "type": "image",
+                    "image_url": photo_url,
+                    "alt_text": title,
+                }
+            )
 
         # Blockquoted body
         if body and not body.startswith("$"):
             # Slack mrkdwn uses *text* for bold — convert markdown *text* to _text_ for italics
-            body = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'_\1_', body)
+            body = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"_\1_", body)
             # Convert markdown headers to Slack bold
-            body = re.sub(r'^#{1,6}\s*(.+)$', r'*\1*', body, flags=re.MULTILINE)
+            body = re.sub(r"^#{1,6}\s*(.+)$", r"*\1*", body, flags=re.MULTILINE)
             quoted_lines: list[str] = []
             for line in body.split("\n"):
                 quoted_lines.append(f"> {line}" if line.strip() else ">")
@@ -79,7 +83,7 @@ def build_blocks(
                     last_nl = chunk.rfind("\n")
                     if last_nl > 0:
                         chunk = quoted[:last_nl]
-                    quoted = quoted[len(chunk):].lstrip("\n")
+                    quoted = quoted[len(chunk) :].lstrip("\n")
                 else:
                     quoted = ""
                 blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": chunk}})

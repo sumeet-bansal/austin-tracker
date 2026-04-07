@@ -43,17 +43,29 @@ def build_map_url(lat: float, lng: float, current_mile: float, mapbox_token: str
     remaining_budget = 80 - completed_budget
 
     def make_url(c: list[list[float]], r: list[list[float]]) -> str:
-        geojson_str = json.dumps({
-            "type": "FeatureCollection",
-            "features": [
-                {"type": "Feature", "geometry": {"type": "LineString", "coordinates": r},
-                 "properties": {"stroke": "#C5C9BC", "stroke-width": 2}},
-                {"type": "Feature", "geometry": {"type": "LineString", "coordinates": c},
-                 "properties": {"stroke": "#B55119", "stroke-width": 4}},
-                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lng, lat]},
-                 "properties": {"marker-color": "#8D2B00", "marker-size": "large"}},
-            ],
-        }, separators=(",", ":"))
+        geojson_str = json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "LineString", "coordinates": r},
+                        "properties": {"stroke": "#C5C9BC", "stroke-width": 2},
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "LineString", "coordinates": c},
+                        "properties": {"stroke": "#B55119", "stroke-width": 4},
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [lng, lat]},
+                        "properties": {"marker-color": "#8D2B00", "marker-size": "large"},
+                    },
+                ],
+            },
+            separators=(",", ":"),
+        )
         encoded = urllib.parse.quote(geojson_str)
         return (
             f"https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/"

@@ -2,7 +2,6 @@
 
 from src.slack import build_blocks
 
-
 TRACKER_URL = "https://hike.austinscarter.com/"
 
 
