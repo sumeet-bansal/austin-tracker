@@ -25,8 +25,6 @@ def format_stats(data: TrackerData, tracker_url: str) -> str:
     elev = data.get("elevation_gain_display", "?")
 
     lines = [
-        ":hikege: *Austin's PCT Week in Review*",
-        "",
         f"*Miles hiked:* {miles:.1f} of 2,650 ({pct:.1f}% complete)",
         f"*Day on trail:* Day {day}",
         f"*Avg pace:* {pace} mi/day",

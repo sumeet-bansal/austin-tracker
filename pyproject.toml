@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Weekly PCT progress bot for Austin's hike"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "mistune>=3.0.0",
+]
 
 [dependency-groups]
 dev = [
