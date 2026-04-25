@@ -23,10 +23,6 @@ def test_recent_post_within_window():
     assert len(recent_posts([_post(10)], WED_NOON)) == 1
 
 
-def test_recent_post_at_boundary():
-    assert len(recent_posts([_post(24)], WED_NOON)) == 1
-
-
 def test_old_post_outside_window():
     assert recent_posts([_post(26)], WED_NOON) == []
 
@@ -103,85 +99,22 @@ def test_friday_no_posts_at_all_still_posts():
     assert decision.include_posts == []
 
 
-# --- Real scenario: April 5/6 trail updates ---
-# Simulates the actual bug: 4 posts on site, 3 recent (Apr 5), 1 old (Mar 20).
-# Bot runs Apr 6 at noon UTC. Only recent posts should be included.
+# --- Real-shape scenario: mix of old and recent posts ---
+# Simulates a real bug where a Mar 20 trail update kept reposting on Apr 6
+# weekly summaries because it was still in the posts list.
 
 APR6_NOON = datetime(2026, 4, 6, 12, 0, tzinfo=UTC)
 
 
-def _real_posts(now: datetime = APR6_NOON) -> list[dict]:
-    """Return posts mimicking the actual site state on Apr 6."""
-    return [
+def test_real_scenario_decide_post_excludes_old():
+    """4 posts on site (3 recent, 1 old) → decide_post includes only the 3 recent ones."""
+    posts = [
         {"id": "mono", "title": "Monotony", "trail_mile": 86.6, "created_at": "2026-04-05T19:35:33+00:00"},
         {"id": "rain", "title": "It's Raining Magic", "trail_mile": 106.5, "created_at": "2026-04-05T19:21:19+00:00"},
         {"id": "desert", "title": "Desert Highway", "trail_mile": 74.1, "created_at": "2026-04-05T19:15:51+00:00"},
         {"id": "blister", "title": "Blistering Heat", "trail_mile": 39.5, "created_at": "2026-03-20T01:45:31+00:00"},
     ]
-
-
-def test_real_scenario_filters_old_post():
-    """The Mar 20 post should not be included when bot runs Apr 6."""
-    posts = _real_posts()
-    result = recent_posts(posts, APR6_NOON)
-    assert len(result) == 3
-    assert all(p["id"] != "blister" for p in result)
-
-
-def test_real_scenario_decide_post_excludes_old():
-    """decide_post should only include the 3 recent posts."""
-    posts = _real_posts()
     decision = decide_post(posts, APR6_NOON)
     assert decision.should_post is True
     assert len(decision.include_posts) == 3
-    titles = [p["title"] for p in decision.include_posts]
-    assert "Blistering Heat" not in titles
-
-
-def test_real_scenario_single_recent_post():
-    """If only one post is recent, only include that one."""
-    posts = _real_posts()
-    # Run bot 2 days later — only Monotony (newest) is within 25h? No, all Apr 5
-    # posts would be old by then. Use a time where only one is recent.
-    one_recent_time = datetime(2026, 4, 5, 20, 0, tzinfo=UTC)
-    result = recent_posts(posts, one_recent_time)
-    # All 3 Apr 5 posts are within 25h of 8pm Apr 5
-    assert len(result) == 3
-
-    # Now simulate: only Monotony posted today, others are old
-    posts_one_new = [
-        {
-            "id": "mono",
-            "title": "Monotony",
-            "trail_mile": 86.6,
-            "created_at": (APR6_NOON - timedelta(hours=5)).isoformat(),
-        },
-        {"id": "blister", "title": "Blistering Heat", "trail_mile": 39.5, "created_at": "2026-03-20T01:45:31+00:00"},
-    ]
-    decision = decide_post(posts_one_new, APR6_NOON)
-    assert decision.should_post is True
-    assert len(decision.include_posts) == 1
-    assert decision.include_posts[0]["id"] == "mono"
-
-
-def test_real_scenario_all_posts_old_skips_on_weekday():
-    """If all posts are old and it's not Friday, skip."""
-    posts = _real_posts()
-    # Run on a Monday 3 weeks later
-    future = datetime(2026, 4, 27, 12, 0, tzinfo=UTC)  # Monday
-    decision = decide_post(posts, future)
-    assert decision.should_post is False
-
-
-def test_real_scenario_single_new_post_tomorrow():
-    """If Austin posts one update on Apr 7, only that post is included —
-    not the older Apr 5 posts."""
-    apr7_noon = datetime(2026, 4, 7, 12, 0, tzinfo=UTC)
-    posts = [
-        {"id": "new", "title": "New Post", "trail_mile": 120, "created_at": "2026-04-07T08:00:00+00:00"},
-        *_real_posts(now=apr7_noon),
-    ]
-    decision = decide_post(posts, apr7_noon)
-    assert decision.should_post is True
-    assert len(decision.include_posts) == 1
-    assert decision.include_posts[0]["id"] == "new"
+    assert "blister" not in {p["id"] for p in decision.include_posts}

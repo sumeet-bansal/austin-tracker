@@ -62,8 +62,6 @@ def extract_data(html: str) -> TrackerData:
 
     # Posts array — bracket-depth counter handles nested objects correctly.
     posts_start = html.find('posts\\":[')
-    if posts_start == -1:
-        posts_start = html.find('posts":[')
     if posts_start != -1:
         bracket_start = html.index("[", posts_start)
         depth, bracket_end = 0, bracket_start
@@ -128,14 +126,13 @@ def fetch_post_body(post_id: str, tracker_url: str) -> str | None:
     chunks = re.findall(r'__next_f\.push\(\[1,"(.*?)"\]\)', html, re.DOTALL)
     best = ""
     for chunk in chunks:
-        text = (
-            chunk.replace('\\"', '"')
-            .replace("\\n", "\n")
-            .replace("\\\\", "\\")
-            .replace("\\u003e", ">")
-            .replace("\\u003c", "<")
-        )
-        # Skip chunks that are React/JS code
+        # The chunk is the body of a JSON string literal — wrap in quotes and
+        # let json.loads handle every escape (\n, \t, \\, \", \uXXXX, surrogate
+        # pairs for emoji). Simpler and more robust than hand-rolled replacements.
+        try:
+            text = json.loads(f'"{chunk}"')
+        except json.JSONDecodeError:
+            continue
         if re.match(r"^\d+:", text) or text.startswith("[") or '["$"' in text[:50]:
             continue
         if len(text) > len(best):

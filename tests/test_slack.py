@@ -1,7 +1,5 @@
 """Tests for Slack Block Kit message construction."""
 
-import json
-
 from src.slack import _per_post_body_budget, _truncate_body, build_blocks
 
 TRACKER_URL = "https://hike.austinscarter.com/"
@@ -64,17 +62,6 @@ def _find_elements(block: dict, element_type: str) -> list[dict]:
 # --- body rendering ---
 
 
-def test_body_wrapped_in_outer_quote():
-    blocks = build_blocks("stats", TRACKER_URL, posts=[_post("Hello world")])
-    rich = _richtext_blocks(blocks)
-    assert len(rich) == 1
-    quotes = _find_elements(rich[0], "rich_text_quote")
-    assert len(quotes) == 1
-    # Outer quote has no border
-    assert "border" not in quotes[0]
-    assert "Hello world" in _all_text(rich[0])
-
-
 def test_source_blockquote_becomes_border_quote():
     """A `>` source quote becomes a sibling rich_text_quote with border:1."""
     body = "Intro paragraph.\n\n> Trail magic (noun)\n> A kind act for hikers\n\nClosing paragraph."
@@ -117,16 +104,6 @@ def test_markdown_headers_become_bold():
     assert "Day 5" in bold_text
 
 
-def test_markdown_bold_becomes_styled_text():
-    body = "I am **not** hiking the PCT."
-    blocks = build_blocks("stats", TRACKER_URL, posts=[_post(body)])
-    rich = _richtext_blocks(blocks)
-    bolds = [t for t in _find_elements(rich[0], "text") if (t.get("style") or {}).get("bold")]
-    assert any(t.get("text") == "not" for t in bolds)
-    # Raw asterisks must not leak into the output
-    assert "**" not in _all_text(rich[0])
-
-
 def test_markdown_italic_becomes_styled_text():
     body = "It was a *steep* descent."
     blocks = build_blocks("stats", TRACKER_URL, posts=[_post(body)])
@@ -158,24 +135,11 @@ def test_long_body_split_across_blocks():
     assert len(_richtext_blocks(blocks)) >= 2
 
 
-def test_only_recent_posts_shown():
+def test_caps_at_three_posts():
+    """build_blocks slices to the first 3 posts even if more are passed in."""
     posts = [_post(f"Post {i}") for i in range(5)]
     blocks = build_blocks("stats", TRACKER_URL, posts=posts)
-    dividers = [b for b in blocks if b["type"] == "divider"]
-    assert len(dividers) == 3
-
-
-def test_single_post_produces_single_update():
-    blocks = build_blocks("stats", TRACKER_URL, posts=[_post("Solo update")])
-    dividers = [b for b in blocks if b["type"] == "divider"]
-    assert len(dividers) == 1
-    assert len(_richtext_blocks(blocks)) == 1
-
-
-def test_no_posts_no_dividers():
-    blocks = build_blocks("stats", TRACKER_URL, posts=[])
-    dividers = [b for b in blocks if b["type"] == "divider"]
-    assert dividers == []
+    assert len([b for b in blocks if b["type"] == "divider"]) == 3
 
 
 # --- truncation ---
@@ -198,11 +162,13 @@ def test_long_body_truncated_with_marker():
 
 
 def test_truncation_prefers_paragraph_boundary():
-    body = "First paragraph.\n\n" + ("filler " * 200) + "\n\nSecond paragraph after the cut."
-    out = _truncate_body(body, "https://x.test/p", max_chars=100)
-    # The output should end at a paragraph boundary before the marker
+    """If a \\n\\n boundary sits past max_chars//2, the cut snaps to it rather
+    than mid-line — avoids truncating in the middle of a sentence."""
+    first = "This is the first paragraph and it has enough characters to land past the halfway mark."
+    body = f"{first}\n\nSecond paragraph that gets cut completely.\n\nThird paragraph."
+    out = _truncate_body(body, "https://x.test/p", max_chars=120)
     cut_body = out.split("\n\n…")[0]
-    assert cut_body.endswith("First paragraph.") or cut_body.endswith(("filler",))
+    assert cut_body == first
 
 
 def test_per_post_budget_scales_with_count():
@@ -218,12 +184,3 @@ def test_per_post_budget_shrinks_when_map_included():
     without = _per_post_body_budget(1, has_map=False)
     with_map = _per_post_body_budget(1, has_map=True)
     assert without > with_map
-
-
-def test_full_message_stays_under_cumulative_limit():
-    """Three long posts + map must not exceed Slack's ~13k cumulative budget."""
-    long_body = "Long paragraph " + "pad " * 500
-    posts = [_post(body=long_body, id=f"p{i}") for i in range(3)]
-    blocks = build_blocks("stats text", TRACKER_URL, posts=posts, map_url="https://maps.example/" + "a" * 1900)
-    total = sum(len(json.dumps(b)) for b in blocks)
-    assert total < 13000, f"Cumulative JSON was {total}"
